@@ -1,2 +1,5 @@
 .csv
 .png
+__pycache__
+venv
+venv3.9
