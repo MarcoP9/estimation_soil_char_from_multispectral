@@ -13,7 +13,7 @@ from sklearn.metrics import r2_score
 
 # Miscellaneous
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import RobustScaler, StandardScaler
 
 # change scaler
 
@@ -25,7 +25,9 @@ from tqdm import tqdm
 
 class ml_models():
 
-    def __init__(self, path_to_data):
+    def __init__(self, path_to_data, scaler):
+
+        self.scaler = scaler
 
         self.base_train = pd.read_csv(f"{path_to_data}/base_train.csv")
         self.base_val = pd.read_csv(f"{path_to_data}/base_val.csv")
@@ -48,7 +50,7 @@ class ml_models():
 
 
     def robust_scaling(self, train, test):
-        scale = RobustScaler()
+        scale = self.scaler
         y_train = np.array(train)
         y_test = np.array(test)
         y_train_scaled = scale.fit_transform(y_train.reshape(-1, 1))
@@ -66,7 +68,7 @@ class ml_models():
             regressors_test = regressors_test.interpolate()
             X_test = np.array(regressors_test)
             # personalized scaling
-            scale = RobustScaler()
+            scale = self.scaler
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
             suf_dem = "DEM"
@@ -146,12 +148,12 @@ class ml_models():
         plt.ylabel("Feature Importance")
         plt.savefig(f"plot/feat_importance/Stacked_barplot.png", bbox_inches = "tight")
 
-ml = ml_models(path_to_data="data/")
+ml = ml_models(path_to_data="data/", scaler=StandardScaler())
 print("Data reading completed")
 
 rf = RandomForestRegressor(max_features=9, n_estimators=30)
 performance_rf_bands = ml.train_model(model=rf, suffix="RF", DEM=False)
-# performance_rf_bands_DEM = ml.train_model(model=rf, suffix="RF", DEM=True)
+performance_rf_bands_DEM = ml.train_model(model=rf, suffix="RF", DEM=True)
 
 # vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
 # performance_svm_bands = ml.train_model(model=vector, suffix="SVM", DEM=False)
@@ -166,7 +168,6 @@ print("All models have been trained")
 
 # ml.feat_importance(path_to_model="models_save/ml_models")
 
-# ml.wrap_results()
+ml.wrap_results()
 
 print("All task have been completed")
-print(ml.chemicals)

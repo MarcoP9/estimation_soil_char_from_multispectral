@@ -1,5 +1,7 @@
-.csv
-.png
+*.csv
+*.png
+*.joblib
 __pycache__
 venv
 venv3.9
+ML_models_mod.py
