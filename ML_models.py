@@ -13,11 +13,12 @@ from sklearn.metrics import r2_score
 
 # Miscellaneous
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import RobustScaler, StandardScaler
+from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
 
 # change scaler
 
 import os
+import sys
 
 from joblib import dump, load
 
@@ -25,9 +26,11 @@ from tqdm import tqdm
 
 class ml_models():
 
-    def __init__(self, path_to_data, scaler):
+    def __init__(self, scaler, path_to_data="data", output="results/ml_models", save_model="models_save/ml_models"):
 
         self.scaler = scaler
+        self.output = output
+        self.save_model = save_model
 
         self.base_train = pd.read_csv(f"{path_to_data}/base_train.csv")
         self.base_val = pd.read_csv(f"{path_to_data}/base_val.csv")
@@ -87,7 +90,8 @@ class ml_models():
             y_train, y_test = self.robust_scaling(self.base_train[col], self.base_test[col])
 
             model.fit(X_train, y_train)
-            dump(model, f'models_save/ml_models/{suffix}_sentinel{suf_dem}_{col}.joblib')
+            dump_path = f'{self.save_model}/{suffix}_sentinel{suf_dem}_{col}.joblib'
+            dump(model, dump_path)
             pred = model.predict(X_test)
             mae_test = np.mean(abs(y_test - pred))
             rmse_test = np.sqrt(np.mean((y_test - pred)**2))
@@ -100,22 +104,30 @@ class ml_models():
             performance["Regressors"] = "Sentinel_DEM"
         else:
             performance["Regressors"] = "Sentinel"
-        performance.to_csv(f"results/ml_models/{suffix}_sentinel{suf_dem}.csv", index=False)
+        saving_results_path = f"{self.output}/{suffix}_sentinel{suf_dem}.csv"
+        if os.path.exists(saving_results_path):
+            saving_results_path[:-4] += "_(1).csv"
+        performance.to_csv(saving_results_path, index=False)
         return performance
 
-    def wrap_results(self):
-        files = os.listdir("results/ml_models")
+    def wrap_results(self, filename="ML_performances.csv"):
+        files = os.listdir(self.output)
         result_list = []
         for file in files:
-            result = pd.read_csv(f"results/ml_models/{file}")
+            result = pd.read_csv(f"{self.output}/{file}")
             result_list.append(result)
         final = pd.concat(result_list)
         final = final.reset_index(drop=True)
-        final.to_csv("ML_performances.csv", index=False)
+        final.to_csv(filename, index=False)
 
-    def feat_importance(self, path_to_model):
+    def feat_importance(self, model_suff="RF", DEM=True):
+        if DEM:
+            suff_dem="DEM"
+        else:
+            suff_dem=""
         for chem in tqdm(self.chemicals, desc="Generating feature importance plots.."):
-            model_rf = load(f'{path_to_model}/RF_sentinelDEM_{chem}.joblib')
+
+            model_rf = load(f'{self.save_model}/{model_suff}_sentinel{suff_dem}_{chem}.joblib')
             fig, ax = plt.subplots(1,1,figsize = (8,4))
             plt.bar(self.bands_multi ,model_rf.feature_importances_[:21], label = "Multispectral")
             plt.bar(self.geo_features ,model_rf.feature_importances_[21:], label = "Geomorphological")
@@ -123,12 +135,12 @@ class ml_models():
             plt.legend()
             plt.xticks(rotation = 45, ha = "right", fontsize = 8)
             plt.grid(alpha = .2)
-            plt.savefig(f"plot/feat_importance/{chem}.png", bbox_inches = "tight")
+            plt.savefig(f"plot/feat_importance/{model_suff}_sentinel{suff_dem}_{chem}.png", bbox_inches = "tight")
 
         band_imp = []
         geo_imp = []
         for chem in self.chemicals:
-            model_rf = load(f'{path_to_model}/RF_sentinelDEM_{chem}.joblib')
+            model_rf = load(f'{self.save_model}/{model_suff}_sentinel{suff_dem}_{chem}.joblib')
             band_imp.append(model_rf.feature_importances_[:21].sum())
             geo_imp.append(model_rf.feature_importances_[21:].sum())
         band_imp = pd.DataFrame({"Chem": self.chemicals, "Importance": band_imp})
@@ -146,28 +158,50 @@ class ml_models():
         plt.grid(alpha = .2)
         plt.xlabel(None)
         plt.ylabel("Feature Importance")
-        plt.savefig(f"plot/feat_importance/Stacked_barplot.png", bbox_inches = "tight")
+        plt.savefig(f"plot/feat_importance/{model_suff}_Stacked_barplot.png", bbox_inches = "tight")
 
-ml = ml_models(path_to_data="data/", scaler=StandardScaler())
-print("Data reading completed")
+ml_standard = ml_models(scaler=StandardScaler(), path_to_data="data/",)
 
 rf = RandomForestRegressor(max_features=9, n_estimators=30)
-performance_rf_bands = ml.train_model(model=rf, suffix="RF", DEM=False)
-performance_rf_bands_DEM = ml.train_model(model=rf, suffix="RF", DEM=True)
+ml_standard.train_model(model=rf, suffix="RF", DEM=False)
+ml_standard.train_model(model=rf, suffix="RF", DEM=True)
 
-# vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
-# performance_svm_bands = ml.train_model(model=vector, suffix="SVM", DEM=False)
-# vector_DEM = svm.SVR(kernel = "rbf")
-# performance_svm_bands_DEM = ml.train_model(model=vector_DEM, suffix="SVM", DEM=True)
-#
-# gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
-# performance_gb_bands = ml.train_model(model=gb_reg, suffix="GB", DEM=False)
-# performance_gb_bands_DEM = ml.train_model(model=gb_reg, suffix="GB", DEM=True)
+vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
+ml_standard.train_model(model=vector, suffix="SVM", DEM=False)
+vector_DEM = svm.SVR(kernel = "rbf")
+ml_standard.train_model(model=vector_DEM, suffix="SVM", DEM=True)
+
+gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
+ml_standard.train_model(model=gb_reg, suffix="GB", DEM=False)
+ml_standard.train_model(model=gb_reg, suffix="GB", DEM=True)
 
 print("All models have been trained")
 
-# ml.feat_importance(path_to_model="models_save/ml_models")
+# ml.feat_importance()
 
-ml.wrap_results()
+ml_standard.wrap_results(filename="ML_results_standard.csv")
 
-print("All task have been completed")
+print("Standard completed")
+
+ml_minmax = ml_models(path_to_data="data/", scaler=MinMaxScaler(), output="results/minmax")
+
+rf = RandomForestRegressor(max_features=9, n_estimators=30)
+ml_minmax.train_model(model=rf, suffix="RF", DEM=False)
+ml_minmax.train_model(model=rf, suffix="RF", DEM=True)
+
+vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
+ml_minmax.train_model(model=vector, suffix="SVM", DEM=False)
+vector_DEM = svm.SVR(kernel = "rbf")
+ml_minmax.train_model(model=vector_DEM, suffix="SVM", DEM=True)
+
+gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
+ml_minmax.train_model(model=gb_reg, suffix="GB", DEM=False)
+ml_minmax.train_model(model=gb_reg, suffix="GB", DEM=True)
+
+print("All models have been trained")
+
+ml_minmax.wrap_results(filename="ML_results_minmax.csv")
+
+print("MinMax Completed")
+
+print("All tasks have been completed")
