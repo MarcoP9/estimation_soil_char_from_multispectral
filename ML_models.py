@@ -106,11 +106,12 @@ class ml_models():
             performance["Regressors"] = "Sentinel"
         saving_results_path = f"{self.output}/{suffix}_sentinel{suf_dem}.csv"
         if os.path.exists(saving_results_path):
-            saving_results_path[:-4] += "_(1).csv"
+            saving_results_path = saving_results_path[:-4] + "_(1).csv"
         performance.to_csv(saving_results_path, index=False)
         return performance
 
-    def wrap_results(self, filename="ML_performances.csv"):
+    def wrap_results(self, result="results/ml_models", filename="ML_performances.csv"):
+        self.output = result
         files = os.listdir(self.output)
         result_list = []
         for file in files:
@@ -162,18 +163,19 @@ class ml_models():
 
 ml_standard = ml_models(scaler=StandardScaler(), path_to_data="data/",)
 
-rf = RandomForestRegressor(max_features=9, n_estimators=30)
-ml_standard.train_model(model=rf, suffix="RF", DEM=False)
-ml_standard.train_model(model=rf, suffix="RF", DEM=True)
+
+# rf = RandomForestRegressor(max_features=9, n_estimators=30)
+# ml_standard.train_model(model=rf, suffix="RF", DEM=False)
+# ml_standard.train_model(model=rf, suffix="RF", DEM=True)
 
 vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
 ml_standard.train_model(model=vector, suffix="SVM", DEM=False)
 vector_DEM = svm.SVR(kernel = "rbf")
 ml_standard.train_model(model=vector_DEM, suffix="SVM", DEM=True)
 
-gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
-ml_standard.train_model(model=gb_reg, suffix="GB", DEM=False)
-ml_standard.train_model(model=gb_reg, suffix="GB", DEM=True)
+# gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
+# ml_standard.train_model(model=gb_reg, suffix="GB", DEM=False)
+# ml_standard.train_model(model=gb_reg, suffix="GB", DEM=True)
 
 print("All models have been trained")
 
@@ -185,18 +187,18 @@ print("Standard completed")
 
 ml_minmax = ml_models(path_to_data="data/", scaler=MinMaxScaler(), output="results/minmax")
 
-rf = RandomForestRegressor(max_features=9, n_estimators=30)
-ml_minmax.train_model(model=rf, suffix="RF", DEM=False)
-ml_minmax.train_model(model=rf, suffix="RF", DEM=True)
+# rf = RandomForestRegressor(max_features=9, n_estimators=30)
+# ml_minmax.train_model(model=rf, suffix="RF", DEM=False)
+# ml_minmax.train_model(model=rf, suffix="RF", DEM=True)
 
 vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
 ml_minmax.train_model(model=vector, suffix="SVM", DEM=False)
 vector_DEM = svm.SVR(kernel = "rbf")
 ml_minmax.train_model(model=vector_DEM, suffix="SVM", DEM=True)
 
-gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
-ml_minmax.train_model(model=gb_reg, suffix="GB", DEM=False)
-ml_minmax.train_model(model=gb_reg, suffix="GB", DEM=True)
+# gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
+# ml_minmax.train_model(model=gb_reg, suffix="GB", DEM=False)
+# ml_minmax.train_model(model=gb_reg, suffix="GB", DEM=True)
 
 print("All models have been trained")
 
