@@ -13,7 +13,7 @@ from sklearn.metrics import r2_score
 
 # Miscellaneous
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
+# from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
 
 # change scaler
 
@@ -29,7 +29,11 @@ class ml_models():
     def __init__(self, scaler, folder_to_data="data", output="results/ml_models", save_model="models_save/ml_models"):
 
         self.scaler = scaler
+        if not os.path.exists(output):
+            os.makedirs(output)
         self.output = output
+        if not os.path.exists(save_model):
+            os.makedirs(save_model)
         self.save_model = save_model
 
         self.base_train = pd.read_csv(f"{folder_to_data}/base_train.csv")
@@ -62,8 +66,8 @@ class ml_models():
         y_test_scaled = y_test_scaled.reshape(y_test_scaled.shape[0],)
         return y_train_scaled, y_test_scaled
 
-    def train_model(self, model, suffix, DEM=False):
-        if DEM:
+    def train_model(self, model, suffix, DEM=None):
+        if DEM == "yes":
             regressors = self.base_train[self.bands_multi + self.geo_features]
             regressors = regressors.interpolate()
             X_train = np.array(regressors)
@@ -74,7 +78,7 @@ class ml_models():
             scale = self.scaler
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
-            suf_dem = "Sentinel_DEM"
+            suf_dem = "SentinelDEM"
         elif DEM == "only":
             regressors = self.base_train[self.geo_features]
             regressors = regressors.interpolate()
@@ -86,7 +90,7 @@ class ml_models():
             scale = self.scaler
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
-            suf_dem = "only_DEM"
+            suf_dem = "onlyDEM"
         else:
             regressors = self.base_train[self.bands_multi]
             # Interpolate only one instance
@@ -112,12 +116,7 @@ class ml_models():
 
         performance = performance.reset_index(drop = True)
         performance["Model"] = suffix
-        if DEM:
-            performance["Regressors"] = "Sentinel_DEM"
-        elif DEM == "only":
-            performance["Regressors"] = "DEM"
-        else:
-            performance["Regressors"] = "Sentinel"
+        performance["Regressors"] = suf_dem
         saving_results_path = f"{self.output}/{suffix}_{suf_dem}.csv"
         if os.path.exists(saving_results_path):
             saving_results_path = saving_results_path[:-4] + "_(1).csv"
@@ -125,68 +124,69 @@ class ml_models():
         return performance
 
 
-    def test_models(self, models_to_test="models_save/ml_models", DEM=False):
+    def test_models(self, models_to_test="models_save/ml_models", output="results/models_tested.csv"):
 
-        if DEM:
-            regressors = self.base_train[self.bands_multi + self.geo_features]
-            regressors = regressors.interpolate()
-            X_train = np.array(regressors)
-            regressors_test = self.base_test[self.bands_multi + self.geo_features]
-            regressors_test = regressors_test.interpolate()
-            X_test = np.array(regressors_test)
-            # personalized scaling
-            scale = self.scaler
-            X_train = scale.fit_transform(X_train)
-            X_test = scale.transform(X_test)
-            suf_dem = "Sentinel_DEM"
-        elif DEM == "only":
-            regressors = self.base_train[self.geo_features]
-            regressors = regressors.interpolate()
-            X_train = np.array(regressors)
-            regressors_test = self.base_test[self.geo_features]
-            regressors_test = regressors_test.interpolate()
-            X_test = np.array(regressors_test)
-            # personalized scaling
-            scale = self.scaler
-            X_train = scale.fit_transform(X_train)
-            X_test = scale.transform(X_test)
-            suf_dem = "only_DEM"
-        else:
-            regressors = self.base_train[self.bands_multi]
-            # Interpolate only one instance
-            regressors = regressors.interpolate()
-            X_train = np.array(regressors)
-            regressors_test = self.base_test[self.bands_multi]
-            X_test = np.array(regressors_test)
-            suf_dem = "Sentinel"
+        all_models = [f for f in os.listdir(models_to_test) if os.path.isfile(os.path.join(models_to_test, f))]
+        performance = pd.DataFrame(columns = ["Char", "Model", "Regressors","MAE", "RMSE", "R2"])
+        for model in all_models:
+            suffs = model.split("_")
+            model_suff = suffs[0]
+            DEM = suffs[1]
+            chem = suffs[2][:-7]
 
-        performance = pd.DataFrame(columns = ["Char", "MAE", "RMSE", "R2"])
+            if DEM == "SentinelDEM":
+                regressors = self.base_train[self.bands_multi + self.geo_features]
+                regressors = regressors.interpolate()
+                X_train = np.array(regressors)
+                regressors_test = self.base_test[self.bands_multi + self.geo_features]
+                regressors_test = regressors_test.interpolate()
+                X_test = np.array(regressors_test)
+                # personalized scaling
+                scale = self.scaler
+                X_train = scale.fit_transform(X_train)
+                X_test = scale.transform(X_test)
+                suf_dem = "SentinelDEM"
 
-        # CICLO SU TUTTI I FILE DENTRO LA CARTELLA
-        for col in tqdm(self.chemicals, desc=f"Testing models in {models_to_test}.."):
-            y_train, y_test = self.scaling(self.base_train[col], self.base_test[col])
-            model = load(f'{models_to_test}/{model_suff}_{suff_dem}_{chem}.joblib')
-            # model.fit(X_train, y_train)
-            # dump_path = f'{self.save_model}/{suffix}_sentinel{suf_dem}_{col}.joblib'
-            # dump(model, dump_path)
+            elif DEM == "onlyDEM":
+                regressors = self.base_train[self.geo_features]
+                regressors = regressors.interpolate()
+                X_train = np.array(regressors)
+                regressors_test = self.base_test[self.geo_features]
+                regressors_test = regressors_test.interpolate()
+                X_test = np.array(regressors_test)
+                # personalized scaling
+                scale = self.scaler
+                X_train = scale.fit_transform(X_train)
+                X_test = scale.transform(X_test)
+                suf_dem = "onlyDEM"
+            else:
+                regressors = self.base_train[self.bands_multi]
+                # Interpolate only one instance
+                regressors = regressors.interpolate()
+                X_train = np.array(regressors)
+                regressors_test = self.base_test[self.bands_multi]
+                X_test = np.array(regressors_test)
+                suf_dem = "Sentinel"
+
+            y_train, y_test = self.scaling(self.base_train[chem], self.base_test[chem])
+            model = load(f'{models_to_test}/{model_suff}_{suf_dem}_{chem}.joblib')
+
             pred = model.predict(X_test)
             mae_test = np.mean(abs(y_test - pred))
             rmse_test = np.sqrt(np.mean((y_test - pred)**2))
             r2_test = r2_score(y_test, pred)
-            performance = pd.concat([performance, pd.DataFrame({"Char": [col], "MAE": [mae_test], "RMSE" : [rmse_test], "R2": [r2_test]})])
+            performance = pd.concat([performance, pd.DataFrame({"Char": [chem],
+                                                                "Model": [model_suff],
+                                                                "Regressors": [suf_dem],
+                                                                "MAE": [mae_test],
+                                                                "RMSE" : [rmse_test],
+                                                                "R2": [r2_test]})])
 
         performance = performance.reset_index(drop = True)
-        performance["Model"] = suffix
-        if DEM:
-            performance["Regressors"] = "Sentinel_DEM"
-        elif DEM == "only":
-            performance["Regressors"] = "DEM"
-        else:
-            performance["Regressors"] = "Sentinel"
-        saving_results_path = f"{self.output}/{suffix}_{suf_dem}.csv"
-        if os.path.exists(saving_results_path):
-            saving_results_path = saving_results_path[:-4] + "_(1).csv"
-        performance.to_csv(saving_results_path, index=False)
+        if os.path.exists(output):
+            output = output[:-4] + "_(1).csv"
+            print("A file with the same name already exists, pay attention!")
+        performance.to_csv(output, index=False)
         return performance
 
     def wrap_results(self, result="results/ml_models", filename="ML_performances.csv"):
@@ -248,36 +248,3 @@ class ml_models():
 
 
 #### RUNNING CODE ##################
-
-ml_standard = ml_models(scaler=StandardScaler(), folder_to_data="data" ,output="results/new_run_standard_scaler")
-
-
-# RANDOM FOREST MODEL
-# rf = RandomForestRegressor(max_features=9, n_estimators=30)
-# ml_standard.train_model(model=rf, suffix="RF", DEM=False)
-# ml_standard.train_model(model=rf, suffix="RF", DEM=True)
-
-# SVR MODEL
-vector = svm.SVR(kernel = "rbf", C=10000, gamma=300)
-ml_standard.train_model(model=vector, suffix="SVR", DEM=False)
-vector_DEM = svm.SVR(kernel = "rbf")
-ml_standard.train_model(model=vector_DEM, suffix="SVR", DEM=True)
-
-# GRADIENT BOOSTING MODEL
-# gb_reg = GradientBoostingRegressor(learning_rate=0.01, n_estimators=300, min_samples_split = 2)
-# ml_standard.train_model(model=gb_reg, suffix="GB", DEM=False)
-# ml_standard.train_model(model=gb_reg, suffix="GB", DEM=True)
-
-print("All models have been trained")
-
-# ml.feat_importance()
-
-ml_standard.wrap_results(filename="ML_results_standard.csv")
-
-# ml_minmax = ml_models(folder_to_data="data/", scaler=MinMaxScaler(), output="results/new_run")
-
-# Models to be used
-
-# ml_minmax.wrap_results(filename="ML_results_minmax.csv")
-
-print("All tasks have been completed")
