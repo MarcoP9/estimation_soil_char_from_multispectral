@@ -26,15 +26,13 @@ from tqdm import tqdm
 
 class ml_models():
 
-    def __init__(self, scaler, folder_to_data="data", output="results/ml_models", save_model="models_save/ml_models"):
+    def __init__(self, scaler, folder_to_data="data", models_saved="models_save/ml_models"):
 
         self.scaler = scaler
-        if not os.path.exists(output):
-            os.makedirs(output)
-        self.output = output
-        if not os.path.exists(save_model):
-            os.makedirs(save_model)
-        self.save_model = save_model
+
+        if not os.path.exists(models_saved):
+            os.makedirs(models_saved)
+        self.models_saved = models_saved
 
         self.base_train = pd.read_csv(f"{folder_to_data}/base_train.csv")
         self.base_val = pd.read_csv(f"{folder_to_data}/base_val.csv")
@@ -55,19 +53,8 @@ class ml_models():
         self.base_val = self.base_val[self.all_columns]
         self.base_test = self.base_test[self.all_columns]
 
-
-    def scaling(self, train, test):
-        scale = self.scaler
-        y_train = np.array(train)
-        y_test = np.array(test)
-        y_train_scaled = scale.fit_transform(y_train.reshape(-1, 1))
-        y_test_scaled = scale.transform(y_test.reshape(-1, 1))
-        y_train_scaled = y_train_scaled.reshape(y_train_scaled.shape[0],)
-        y_test_scaled = y_test_scaled.reshape(y_test_scaled.shape[0],)
-        return y_train_scaled, y_test_scaled
-
-    def train_model(self, model, suffix, regressors="Sentinel"):
-        if regressors == "SentinelDEM":
+    def regressor_selection(self, regr):
+        if regr == "SentinelDEM":
             regressors = self.base_train[self.bands_multi + self.geo_features]
             regressors = regressors.interpolate()
             X_train = np.array(regressors)
@@ -78,8 +65,8 @@ class ml_models():
             scale = self.scaler
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
-            suf_dem = "SentinelDEM"
-        elif regressors == "onlyDEM":
+
+        elif regr == "onlyDEM":
             regressors = self.base_train[self.geo_features]
             regressors = regressors.interpolate()
             X_train = np.array(regressors)
@@ -90,89 +77,61 @@ class ml_models():
             scale = self.scaler
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
-            suf_dem = "onlyDEM"
-        elif regressors == "Sentinel":
+
+        elif regr == "Sentinel":
             regressors = self.base_train[self.bands_multi]
             # Interpolate only one instance
             regressors = regressors.interpolate()
             X_train = np.array(regressors)
             regressors_test = self.base_test[self.bands_multi]
             X_test = np.array(regressors_test)
-            suf_dem = "Sentinel"
+
         else:
-            print("Problemi!!")
+            print("Problems!!")
             sys.exit()
+        return X_train, X_test
 
-        performance = pd.DataFrame(columns = ["Char", "MAE", "RMSE", "R2"])
 
-        for col in tqdm(self.chemicals, desc=f"Training {suffix} model with {suf_dem}.."):
-            y_train, y_test = self.scaling(self.base_train[col], self.base_test[col])
+    def label_scaling(self, train, test):
+        scale = self.scaler
+        y_train = np.array(train)
+        y_test = np.array(test)
+        y_train_scaled = scale.fit_transform(y_train.reshape(-1, 1))
+        y_test_scaled = scale.transform(y_test.reshape(-1, 1))
+        y_train_scaled = y_train_scaled.reshape(y_train_scaled.shape[0],)
+        y_test_scaled = y_test_scaled.reshape(y_test_scaled.shape[0],)
+        return y_train_scaled, y_test_scaled
+
+
+    def train_model(self, model, suffix, regr_suff="Sentinel"):
+
+        X_train, _ = self.regressor_selection(regr_suff)
+
+        for col in tqdm(self.chemicals, desc=f"Training {suffix} model with {regr_suff}.."):
+            y_train, _ = self.label_scaling(self.base_train[col], self.base_test[col])
 
             model.fit(X_train, y_train)
-            dump_path = f'{self.save_model}/{suffix}_{suf_dem}_{col}.joblib'
+            dump_path = f'{self.models_saved}/{suffix}_{regr_suff}_{col}.joblib'
             dump(model, dump_path)
-            pred = model.predict(X_test)
-            mae_test = np.mean(abs(y_test - pred))
-            rmse_test = np.sqrt(np.mean((y_test - pred)**2))
-            r2_test = r2_score(y_test, pred)
-            performance = pd.concat([performance, pd.DataFrame({"Char": [col], "MAE": [mae_test], "RMSE" : [rmse_test], "R2": [r2_test]})])
-
-        performance = performance.reset_index(drop = True)
-        performance["Model"] = suffix
-        performance["Regressors"] = suf_dem
-        saving_results_path = f"{self.output}/{suffix}_{suf_dem}.csv"
-        if os.path.exists(saving_results_path):
-            saving_results_path = saving_results_path[:-4] + "_(1).csv"
-        performance.to_csv(saving_results_path, index=False)
-        return performance
 
 
-    def test_models(self, models_to_test="models_save/ml_models", output="results/models_tested.csv"):
+    def test_models(self, models_to_test="models_save/ml_models", output="models_tested.csv"):
+
+        if not os.path.exists("results"):
+            os.makedirs("results")
 
         all_models = [f for f in os.listdir(models_to_test) if os.path.isfile(os.path.join(models_to_test, f))]
         performance = pd.DataFrame(columns = ["Char", "Model", "Regressors","MAE", "RMSE", "R2"])
-        for model in all_models:
+        for model in tqdm(all_models, desc=f"Testing all models in {models_to_test} ..."):
             suffs = model.split("_")
             model_suff = suffs[0]
-            DEM = suffs[1]
+            regr_suff = suffs[1]
             chem = suffs[2][:-7]
 
-            if DEM == "SentinelDEM":
-                regressors = self.base_train[self.bands_multi + self.geo_features]
-                regressors = regressors.interpolate()
-                X_train = np.array(regressors)
-                regressors_test = self.base_test[self.bands_multi + self.geo_features]
-                regressors_test = regressors_test.interpolate()
-                X_test = np.array(regressors_test)
-                # personalized scaling
-                scale = self.scaler
-                X_train = scale.fit_transform(X_train)
-                X_test = scale.transform(X_test)
-                suf_dem = "SentinelDEM"
+            _, X_test = self.regressor_selection(regr_suff)
 
-            elif DEM == "onlyDEM":
-                regressors = self.base_train[self.geo_features]
-                regressors = regressors.interpolate()
-                X_train = np.array(regressors)
-                regressors_test = self.base_test[self.geo_features]
-                regressors_test = regressors_test.interpolate()
-                X_test = np.array(regressors_test)
-                # personalized scaling
-                scale = self.scaler
-                X_train = scale.fit_transform(X_train)
-                X_test = scale.transform(X_test)
-                suf_dem = "onlyDEM"
-            else:
-                regressors = self.base_train[self.bands_multi]
-                # Interpolate only one instance
-                regressors = regressors.interpolate()
-                X_train = np.array(regressors)
-                regressors_test = self.base_test[self.bands_multi]
-                X_test = np.array(regressors_test)
-                suf_dem = "Sentinel"
-
-            y_train, y_test = self.scaling(self.base_train[chem], self.base_test[chem])
-            model = load(f'{models_to_test}/{model_suff}_{suf_dem}_{chem}.joblib')
+            _, y_test = self.label_scaling(self.base_train[chem], self.base_test[chem])
+            model = load(f'{models_to_test}/{model_suff}_{regr_suff}_{chem}.joblib')
 
             pred = model.predict(X_test)
             mae_test = np.mean(abs(y_test - pred))
@@ -180,7 +139,7 @@ class ml_models():
             r2_test = r2_score(y_test, pred)
             performance = pd.concat([performance, pd.DataFrame({"Char": [chem],
                                                                 "Model": [model_suff],
-                                                                "Regressors": [suf_dem],
+                                                                "Regressors": [regr_suff],
                                                                 "MAE": [mae_test],
                                                                 "RMSE" : [rmse_test],
                                                                 "R2": [r2_test]})])
@@ -190,7 +149,7 @@ class ml_models():
             output = output[:-4] + "_(1).csv"
             print("A file with the same name already exists, pay attention!")
         performance.to_csv(output, index=False)
-        return performance
+        # return performance
 
     def wrap_results(self, result="results/ml_models", filename="ML_performances.csv"):
         self.output = result
@@ -215,7 +174,7 @@ class ml_models():
             suff_dem=""
         for chem in tqdm(self.chemicals, desc="Generating feature importance plots.."):
 
-            model_rf = load(f'{self.save_model}/{model_suff}_{suff_dem}_{chem}.joblib')
+            model_rf = load(f'{self.models_saved}/{model_suff}_{suff_dem}_{chem}.joblib')
             fig, ax = plt.subplots(1,1,figsize = (8,4))
             plt.bar(self.bands_multi ,model_rf.feature_importances_[:21], label = "Multispectral")
             plt.bar(self.geo_features ,model_rf.feature_importances_[21:], label = "Geomorphological")
@@ -228,7 +187,7 @@ class ml_models():
         band_imp = []
         geo_imp = []
         for chem in self.chemicals:
-            model_rf = load(f'{self.save_model}/{model_suff}_{suff_dem}_{chem}.joblib')
+            model_rf = load(f'{self.models_saved}/{model_suff}_{suff_dem}_{chem}.joblib')
             band_imp.append(model_rf.feature_importances_[:21].sum())
             geo_imp.append(model_rf.feature_importances_[21:].sum())
         band_imp = pd.DataFrame({"Chem": self.chemicals, "Importance": band_imp})
@@ -247,7 +206,3 @@ class ml_models():
         plt.xlabel(None)
         plt.ylabel("Feature Importance")
         plt.savefig(f"plot/feat_importance/{model_suff}_Stacked_barplot.png", bbox_inches = "tight")
-
-
-
-#### RUNNING CODE ##################
