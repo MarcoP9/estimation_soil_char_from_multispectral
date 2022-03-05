@@ -4,15 +4,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Models
-from sklearn.ensemble import RandomForestRegressor
-from sklearn import svm
-from sklearn.ensemble import GradientBoostingRegressor
+# from sklearn.ensemble import RandomForestRegressor
+# from sklearn import svm
+# from sklearn.ensemble import GradientBoostingRegressor
 
 # Metrics
 from sklearn.metrics import r2_score
 
 # Miscellaneous
-from sklearn.model_selection import train_test_split
+# from sklearn.model_selection import train_test_split
 # from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
 
 # change scaler
@@ -66,8 +66,8 @@ class ml_models():
         y_test_scaled = y_test_scaled.reshape(y_test_scaled.shape[0],)
         return y_train_scaled, y_test_scaled
 
-    def train_model(self, model, suffix, DEM=None):
-        if DEM == "yes":
+    def train_model(self, model, suffix, regressors="Sentinel"):
+        if regressors == "SentinelDEM":
             regressors = self.base_train[self.bands_multi + self.geo_features]
             regressors = regressors.interpolate()
             X_train = np.array(regressors)
@@ -79,7 +79,7 @@ class ml_models():
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
             suf_dem = "SentinelDEM"
-        elif DEM == "only":
+        elif regressors == "onlyDEM":
             regressors = self.base_train[self.geo_features]
             regressors = regressors.interpolate()
             X_train = np.array(regressors)
@@ -91,7 +91,7 @@ class ml_models():
             X_train = scale.fit_transform(X_train)
             X_test = scale.transform(X_test)
             suf_dem = "onlyDEM"
-        else:
+        elif regressors == "Sentinel":
             regressors = self.base_train[self.bands_multi]
             # Interpolate only one instance
             regressors = regressors.interpolate()
@@ -99,6 +99,9 @@ class ml_models():
             regressors_test = self.base_test[self.bands_multi]
             X_test = np.array(regressors_test)
             suf_dem = "Sentinel"
+        else:
+            print("Problemi!!")
+            sys.exit()
 
         performance = pd.DataFrame(columns = ["Char", "MAE", "RMSE", "R2"])
 
