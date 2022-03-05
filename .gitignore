@@ -1,6 +1,7 @@
 *.csv
 *.png
 *.joblib
+*.pth
 *.txt
 __pycache__
 venv

@@ -29,6 +29,27 @@ class sentinel(nn.Module):
         out = self.linear4(out)
         return out
 
+class dem(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(dem, self).__init__()
+        self.linear1 = nn.Linear(input_dim,32)
+        self.relu1 = nn.Hardswish()
+        self.linear2 = nn.Linear(32,128)
+        self.relu2 = nn.Tanhshrink()
+        self.linear3 = nn.Linear(128,32)
+        self.relu3 = nn.Hardswish()
+        self.linear4 = nn.Linear(32,output_dim)
+
+    def forward(self, geomo):
+        out = self.linear1(geomo)
+        out = self.relu1(out)
+        out = self.linear2(out)
+        out = self.relu2(out)
+        out = self.linear3(out)
+        out = self.relu3(out)
+        out = self.linear4(out)
+        return out
+
 class sentinel_DEM(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(sentinel_DEM, self).__init__()
@@ -184,26 +205,26 @@ optimizer = torch.optim.Adam(model.parameters(), lr = lr)
 #                 path_to_save="models_save/nn_models/best_model_multi_target.pth",
 #                 DEM=False)
 
-y_true, y_pred = test_model(data_test,
-                            model,
-                            criterion,
-                            path_model='models_save/nn_models/best_model_multi_target.pth',
-                            DEM=False)
-
-performances(y_true, y_pred, path_results="results/nn_models/NN_multitarget.csv")
+# y_true, y_pred = test_model(data_test,
+#                             model,
+#                             criterion,
+#                             path_model='models_save/nn_models/best_model_multi_target.pth',
+#                             DEM=False)
+#
+# performances(y_true, y_pred, path_results="results/nn_models/NN_multitarget.csv")
 
 input_feat = data.multi_vals.shape[1] + data.geomorpho.shape[1]
 output_feat = data.chemicals.shape[1]
 
 model = sentinel_DEM(input_feat, output_feat)
 
-# train_val_model(data,
-#                 data_val,
-#                 model,
-#                 criterion,
-#                 optimizer,
-#                 path_to_save="models_save/nn_models/best_model_multi_target_DEM.pth",
-#                 DEM=True)
+train_val_model(data,
+                data_val,
+                model,
+                criterion,
+                optimizer,
+                path_to_save="models_save/nn_models/best_model_multi_target_DEM.pth",
+                DEM=True)
 
 y_true, y_pred = test_model(data_test,
                             model,
@@ -211,4 +232,5 @@ y_true, y_pred = test_model(data_test,
                             path_model='models_save/nn_models/best_model_multi_target_DEM.pth',
                             DEM=True)
 
-performances(y_true, y_pred, path_results="results/nn_models/NN_multitarget_DEM.csv")
+# performances(y_true, y_pred, path_results="results/nn_models/NN_multitarget_DEM.csv")
+performances(y_true, y_pred, path_results="testing.csv")
