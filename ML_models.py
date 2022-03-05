@@ -162,19 +162,14 @@ class ml_models():
         final = final.reset_index(drop=True)
         final.to_csv(filename, index=False)
 
-    def feat_importance(self, model_suff="RF", DEM=True):
+    def feat_importance(self, model_suff, models="models_save/ml_models", output="plot/feat_importance"):
 
-        # PER COME E' STRUTTURATA ADESSO FUNZIONA SOLO CON SENTINEL E DEM!!!!
+        if not os.path.exists(output):
+            os.makedirs(output)
 
-        if DEM:
-            suff_dem="DEM"
-        elif DEM == "only":
-            suff_dem = "only_DEM"
-        else:
-            suff_dem=""
         for chem in tqdm(self.chemicals, desc="Generating feature importance plots.."):
 
-            model_rf = load(f'{self.models_saved}/{model_suff}_{suff_dem}_{chem}.joblib')
+            model_rf = load(f'{models}/{model_suff}_SentinelDEM_{chem}.joblib')
             fig, ax = plt.subplots(1,1,figsize = (8,4))
             plt.bar(self.bands_multi ,model_rf.feature_importances_[:21], label = "Multispectral")
             plt.bar(self.geo_features ,model_rf.feature_importances_[21:], label = "Geomorphological")
@@ -182,12 +177,13 @@ class ml_models():
             plt.legend()
             plt.xticks(rotation = 45, ha = "right", fontsize = 8)
             plt.grid(alpha = .2)
-            plt.savefig(f"plot/feat_importance/{model_suff}_{suff_dem}_{chem}.png", bbox_inches = "tight")
+            plt.savefig(f"{output}/{model_suff}_SentinelDEM_{chem}.png", bbox_inches = "tight")
 
         band_imp = []
         geo_imp = []
         for chem in self.chemicals:
-            model_rf = load(f'{self.models_saved}/{model_suff}_{suff_dem}_{chem}.joblib')
+            model_rf = load(f'{self.models_saved}/{model_suff}_SentinelDEM_{chem}.joblib')
+
             band_imp.append(model_rf.feature_importances_[:21].sum())
             geo_imp.append(model_rf.feature_importances_[21:].sum())
         band_imp = pd.DataFrame({"Chem": self.chemicals, "Importance": band_imp})
@@ -205,4 +201,14 @@ class ml_models():
         plt.grid(alpha = .2)
         plt.xlabel(None)
         plt.ylabel("Feature Importance")
-        plt.savefig(f"plot/feat_importance/{model_suff}_Stacked_barplot.png", bbox_inches = "tight")
+        plt.savefig(f"{output}/{model_suff}_Stacked_barplot.png", bbox_inches = "tight")
+
+    def latex_generator(self, model_suff, models="models_save/ml_models"):
+        diz_all = {}
+        diz_all["Features"] = self.bands_multi + self.geo_features
+        for chem in self.chemicals:
+            model_rf = load(f'{models}/{model_suff}_sentinelDEM_{chem}.joblib')
+            diz_all[chem] = model_rf.feature_importances_.tolist()
+        diz_all_df = pd.DataFrame(diz_all)
+        latex_table = diz_all_df.to_latex(float_format="%.2f", bold_rows = True, index = False)
+        print(latex_table, file=open("feat_importance.txt", "a"))
